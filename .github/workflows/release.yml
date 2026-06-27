@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build Release Assets
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist
+
+          build() {
+            goos="$1"
+            goarch="$2"
+            ext=""
+            archive_ext="tar.gz"
+
+            if [ "$goos" = "windows" ]; then
+              ext=".exe"
+              archive_ext="zip"
+            fi
+
+            name="agent-policy-kit-${goos}-${goarch}"
+            package_dir="dist/${name}"
+            mkdir -p "$package_dir"
+
+            GOOS="$goos" GOARCH="$goarch" go build \
+              -trimpath \
+              -ldflags="-s -w" \
+              -o "${package_dir}/agent-policy-kit${ext}" \
+              ./cmd/agent-policy-kit
+
+            if [ "$archive_ext" = "zip" ]; then
+              (cd "$package_dir" && zip -q "../${name}.zip" "agent-policy-kit${ext}")
+            else
+              tar -C "$package_dir" -czf "dist/${name}.tar.gz" "agent-policy-kit${ext}"
+            fi
+
+            rm -rf "$package_dir"
+          }
+
+          build darwin amd64
+          build darwin arm64
+          build linux amd64
+          build linux arm64
+          build windows amd64
+
+          (cd dist && sha256sum * > checksums.txt)
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Agent Policy Kit ${TAG_NAME}" \
+            --notes-file CHANGELOG.md

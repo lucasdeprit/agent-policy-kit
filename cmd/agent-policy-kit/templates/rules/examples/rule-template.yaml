@@ -1,0 +1,35 @@
+# This file is a documented example. Files under rules/examples/ are not loaded
+# by agent-policy-kit review. Copy this file to rules/my-rules.yaml and edit it.
+
+rules:
+  # Stable identifier shown in the review output.
+  - id: EX001
+
+    # Human-readable rule name. Useful for docs and search.
+    name: no_debug_prints
+
+    # MVP supports only error. A violation exits with code 1.
+    severity: error
+
+    # Files to validate. Patterns use / as separator on every OS.
+    include:
+      - "src/**/*.ts"
+
+    # Optional files to skip, even if include matched them.
+    exclude:
+      - "src/generated/**"
+
+    # MVP supports only regex. The pattern is evaluated against each added line
+    # in the current Git diff, not against the full file.
+    match:
+      type: regex
+      pattern: "\\bconsole\\.log\\s*\\("
+
+    # Short explanation of the problem.
+    message: "Do not commit debug logging."
+
+    # What the code should use or do instead.
+    expected: "Use the project logger or remove the log."
+
+    # Concrete action for an agent to apply.
+    suggestion: "Replace console.log(...) or delete it before finishing."

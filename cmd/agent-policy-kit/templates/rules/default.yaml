@@ -1,0 +1,17 @@
+rules:
+  - id: GEN001
+    name: no_debug_console_logs
+    severity: error
+    include:
+      - "src/**/*.js"
+      - "src/**/*.jsx"
+      - "src/**/*.ts"
+      - "src/**/*.tsx"
+    exclude:
+      - "src/generated/**"
+    match:
+      type: regex
+      pattern: "\\bconsole\\.log\\s*\\("
+    message: "Do not commit debug console logging."
+    expected: "Use the project logger or remove the log."
+    suggestion: "Replace console.log(...) or delete it before finishing."

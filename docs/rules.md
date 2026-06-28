@@ -21,6 +21,8 @@ rules/
 
 `agent-policy-kit review` loads only YAML files directly under `rules/`. Files under `rules/examples/` are documentation/examples and are not evaluated.
 
+Rule sources are automatically excluded from validation. If `--rules ./rules` is used, changes under `./rules` are ignored by `review`; if `--rules ./rules/*.yaml` is used, the matched YAML files are ignored.
+
 Rules and target project can be independent:
 
 ```bash

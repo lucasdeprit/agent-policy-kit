@@ -65,6 +65,7 @@ func runReview(args []string) int {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
 	}
+	changes = excludeRuleSourceChanges(changes, options.Target, options.RuleSources)
 
 	violations := engine.Review(changes, rules)
 	reporter.Text(os.Stdout, violations)
@@ -72,6 +73,85 @@ func runReview(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func excludeRuleSourceChanges(changes []diff.Change, target string, ruleSources []string) []diff.Change {
+	exclusions := ruleSourceExclusions(ruleSources)
+	if len(exclusions) == 0 {
+		return changes
+	}
+
+	filtered := make([]diff.Change, 0, len(changes))
+	for _, change := range changes {
+		changePath := filepath.Join(target, filepath.FromSlash(change.File))
+		if isExcludedPath(changePath, exclusions) {
+			continue
+		}
+		filtered = append(filtered, change)
+	}
+	return filtered
+}
+
+type ruleSourceExclusion struct {
+	Path  string
+	IsDir bool
+}
+
+func ruleSourceExclusions(ruleSources []string) []ruleSourceExclusion {
+	var exclusions []ruleSourceExclusion
+	for _, source := range ruleSources {
+		if strings.ContainsAny(source, "*?[") {
+			matches, err := filepath.Glob(source)
+			if err != nil {
+				continue
+			}
+			for _, match := range matches {
+				if exclusion, ok := newRuleSourceExclusion(match); ok {
+					exclusions = append(exclusions, exclusion)
+				}
+			}
+			continue
+		}
+
+		if exclusion, ok := newRuleSourceExclusion(source); ok {
+			exclusions = append(exclusions, exclusion)
+		}
+	}
+	return exclusions
+}
+
+func newRuleSourceExclusion(path string) (ruleSourceExclusion, bool) {
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return ruleSourceExclusion{}, false
+	}
+	info, err := os.Stat(absolutePath)
+	if err != nil {
+		return ruleSourceExclusion{}, false
+	}
+	return ruleSourceExclusion{Path: filepath.Clean(absolutePath), IsDir: info.IsDir()}, true
+}
+
+func isExcludedPath(path string, exclusions []ruleSourceExclusion) bool {
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	absolutePath = filepath.Clean(absolutePath)
+
+	for _, exclusion := range exclusions {
+		if exclusion.IsDir {
+			rel, err := filepath.Rel(exclusion.Path, absolutePath)
+			if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return true
+			}
+			continue
+		}
+		if absolutePath == exclusion.Path {
+			return true
+		}
+	}
+	return false
 }
 
 func runDoctor(args []string) int {

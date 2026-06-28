@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/lucasdeprit/agent-policy-kit/internal/diff"
 )
 
 func TestParseOptionsDefaults(t *testing.T) {
@@ -78,5 +80,58 @@ func TestInitProjectDoesNotOverwriteExistingRules(t *testing.T) {
 	}
 	if string(content) != "custom: true\n" {
 		t.Fatalf("existing rule was overwritten: %q", string(content))
+	}
+}
+
+func TestExcludeRuleSourceChangesSkipsRulesDirectory(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "project")
+	rulesDir := filepath.Join(target, "rules")
+	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
+		t.Fatalf("mkdir rules: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(target, "src"), 0o755); err != nil {
+		t.Fatalf("mkdir src: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(rulesDir, "default.yaml"), []byte("rules: []\n"), 0o644); err != nil {
+		t.Fatalf("write rules: %v", err)
+	}
+
+	changes := []diff.Change{
+		{File: "rules/default.yaml", Line: 1, Text: `pattern: "\\bconsole\\.log"`},
+		{File: "src/app.ts", Line: 1, Text: `console.log("debug")`},
+	}
+
+	filtered := excludeRuleSourceChanges(changes, target, []string{rulesDir})
+	if len(filtered) != 1 {
+		t.Fatalf("expected 1 filtered change, got %#v", filtered)
+	}
+	if filtered[0].File != "src/app.ts" {
+		t.Fatalf("unexpected remaining change: %#v", filtered[0])
+	}
+}
+
+func TestExcludeRuleSourceChangesSkipsRuleGlobFiles(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "project")
+	rulesDir := filepath.Join(target, "rules")
+	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
+		t.Fatalf("mkdir rules: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(rulesDir, "default.yaml"), []byte("rules: []\n"), 0o644); err != nil {
+		t.Fatalf("write rules: %v", err)
+	}
+
+	changes := []diff.Change{
+		{File: "rules/default.yaml", Line: 1, Text: `pattern: "\\bconsole\\.log"`},
+		{File: "rules/notes.md", Line: 1, Text: `console.log("debug")`},
+	}
+
+	filtered := excludeRuleSourceChanges(changes, target, []string{filepath.Join(rulesDir, "*.yaml")})
+	if len(filtered) != 1 {
+		t.Fatalf("expected 1 filtered change, got %#v", filtered)
+	}
+	if filtered[0].File != "rules/notes.md" {
+		t.Fatalf("unexpected remaining change: %#v", filtered[0])
 	}
 }

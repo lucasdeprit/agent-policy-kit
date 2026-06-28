@@ -86,6 +86,8 @@ By default, rules are loaded from `rules/*.yaml` and `rules/*.yml` in the curren
 
 The engine is language-agnostic. Files under `rules/examples/` are examples for humans and are not loaded by `review`.
 
+Rule sources are automatically excluded from validation. This lets rule files contain examples of forbidden patterns without causing `review` to fail on the rules themselves.
+
 ```yaml
 rules:
   - id: GEN001
